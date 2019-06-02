@@ -1,98 +1,177 @@
+import model, {makeQuestion} from "../model/model";
 import {EventEmitter} from "events";
 
-class QuestionModel extends EventEmitter{
-    constructor(){
+class QuestionModel extends EventEmitter {
+
+    constructor() {
         super();
+
         this.state = {
-            questions: [{
-                id:0,
-                username: "u1",
-                title: "Question 1",
-                text: "text1",
-                creationDate: 2017,
-                tags: "tag1 tag2 tag3",
-                voteCount: 0
-            },
-            {
-                id:1,
-                username: "u2",
-                title: "Question 2",
-                text: "text2",
-                creationDate: 2018,
-                tags: "tag1 tag3",
-                voteCount: 0
-            }
-            ],
-            curentId:1,
+
+            currentUser: null,
+            questions: [],
+
             newQuestion: {
-                id:-1,
-                username: "",
                 title: "",
                 text: "",
-                creationDate: 2019,
-                tags:"",
-                voteCount: 0
+                tagsAsString: ""
             },
-            filterMode:"",
+
+            updateQuestion: {
+                title: "",
+                text: "",
+                tags:""
+            },
+
+            tags: [],
+
             filterText: "",
-            filteredQuestions:[]
+
         };
     }
+    loadAllQuestions() {
+        return model.client.createQuestionClient().loadAllQuestions()
+            .then(questions => {
+                    this.state = {
+                        ...this.state,
+                        questions: questions
+                    }
+                    this.emit("change", this.state);
+                }
+            );
+    }
 
-    addQuestion(username, title, text, tags) {
+    changeStateProperty(property, value) {
         this.state = {
             ...this.state,
-            curentId: ++this.state.curentId,
-            questions:this.state.questions.concat([{
-                id:this.state.curentId,
-                username:username,
-                title:title,
-                text: text,
-                creationDate: 2019,
-                tags: tags,
-                voteCount: 0
-            }])
+            [property]: value
         };
         this.emit("change", this.state);
     }
 
-    changeNewQuestionProperty(property, value){
+    changeUpdateQuestionProperty(property, value) {
+        this.state = {
+            ...this.state,
+            updateQuestion: {
+                ...this.state.updateQuestion,
+                [property]: value
+            }
+        };
+        this.emit("change", this.state);
+    }
+        changeNewQuestionProperty(property, value) {
         this.state = {
             ...this.state,
             newQuestion: {
                 ...this.state.newQuestion,
-                [property]:value
+                [property]: value
             }
         };
         this.emit("change", this.state);
     }
-    changeStateProperty(property, value){
+
+    addQuestion(title, text, tags) {
+        return model.client.createQuestionClient().createQuestion(title, text, tags).then(()=>this.loadAllQuestions());
+    }
+
+    updateQuestion(questionId, newTitle, newText, newTags) {
+        return model.client.createQuestionClient().updateQuestion(questionId, newTitle, newText, newTags);
+    }
+
+    deleteQuestion(questionId) {
+        return model.client.createQuestionClient().deleteQuestion(questionId);
+    }
+
+    voteQuestion(questionId, voteValue) {
+        return model.client.createQuestionClient().voteQuestion(questionId, voteValue).then(()=>this.loadAllQuestions());
+    }
+
+    loadFilteredByTags(tagsAsString) {
+        return model.client.createQuestionClient().loadFilteredByTags(tagsAsString).then(questions => {
+                this.state = {
+                    ...this.state,
+                    questions:questions
+                }
+
+                this.emit("change", this.state);
+            }
+        );
+    }
+
+    loadFilteredByTitle(title) {
+        return model.client.createQuestionClient().loadFilteredByTitle(title).then(questions => {
+                this.state = {
+                    ...this.state,
+                    questions: questions
+                }
+
+                this.emit("change", this.state);
+            }
+        );
+    }
+
+    getQuestion(id) {
+        var res = this.state.questions.find(q => q.id === id);
+        return res;
+    }
+
+    prepareQuestionForUpdate(questionId) {
+        var question = this.getQuestion(questionId);
+        this.state.updateQuestion.title = question.title;
+        this.state.updateQuestion.text = question.text;
+        this.state.updateQuestion.id = questionId;
+        this.state.updateQuestion.tags = question.tags;
+
+        this.emit("change", this.state);
+    }
+
+    filterQuestionsByTagInLocalState(tags) {
+        return this.state.questions.filter(q => tags.every(t => q.tags.includes(t)));
+    }
+
+    filterQuestionsByTitleInLocalState(title) {
+        return this.state.questions.filter(q => q.title.includes(title));
+    }
+
+     addQuestionToLocalState(question) {
         this.state = {
             ...this.state,
-            [property]:value
+            questions: [question].concat(this.state.questions)
+        };
+
+        this.emit("change", this.state);
+    }
+
+    updateQuestionToLocalState(questionId, newTitle, newText) {
+        var question = this.getQuestion(questionId);
+        if (question === undefined) {
+            return;
+        }
+
+        question.title = newTitle;
+        question.text = newText;
+
+        this.emit("change", this.state);
+    }
+
+    deleteQuestionToLocalState(questionId) {
+        this.state = {
+            ...this.state,
+            questions: this.state.questions.filter(q => q.id !== questionId),
         };
         this.emit("change", this.state);
     }
 
+    sendVoteQuestionToLocalState(votedQuestion) {
+        var question = this.getQuestion(votedQuestion.id);
+        if(question === undefined) return;
+        question.voteCount = votedQuestion.voteCount;
 
-    filterByTitle(){
-        this.state.filteredQuestions = this.state.questions.filter((question, index, arr) => (
-            question.title.includes(this.state.filterText)
-        ));
-        //this.state.questions = this.state.filteredQuestions;
-        console.log(this.state.questions);
-
-}
-
-    filterByTag(){
-        this.state.filteredQuestions = this.state.questions.filter((question, index, arr) => (
-            question.tags.includes(this.state.filterText)
-        ));
-         //this.state.questions = this.state.filteredQuestions;
-        console.log(this.state.questions);
-}
+        this.emit("change", this.state);
+    }
 
 }
 
 const questionModel = new QuestionModel();
-export  default questionModel;
+
+export default questionModel;

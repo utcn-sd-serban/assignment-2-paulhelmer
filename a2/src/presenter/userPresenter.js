@@ -1,14 +1,14 @@
 import userModel from "../model/userModel";
+import model from "../model/model";
 
 class UserPresenter {
     onLogin = () => {
         let newUser = userModel.state.newUser;
-        let loginSuccess = userModel.login(newUser.userName, newUser.password);
+        let loginSuccess = model.makeLogin(newUser.username, newUser.password);
 
-        userModel.changeNewUserProperty("userName", "");
+        userModel.changeNewUserProperty("username", "");
         userModel.changeNewUserProperty("password", "");
 
-        debugger;
         if (loginSuccess) {
             userModel.changeLoggedInUserProperty("loggedInUser", newUser.username);
             window.location.assign("#/questions");
@@ -21,7 +21,7 @@ class UserPresenter {
         let newUser = userModel.state.newUser;
 
         userModel.addUser(newUser.username, newUser.password);
-        userModel.changeNewUserProperty("userName", "");
+        userModel.changeNewUserProperty("username", "");
         userModel.changeNewUserProperty("password", "");
         userModel.changeLoggedInUserProperty("loggedInUser", newUser.username);
         window.location.assign("#/questions");

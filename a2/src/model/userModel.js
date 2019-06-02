@@ -1,39 +1,38 @@
 import {EventEmitter} from "events";
+import WebSocketListener from "../ws/WebSocketListener"
+import RestClientFactory from "../rest/RestClientFactory"
 
+const makeUser = (id, username, password, score, isModerator, isBanned) =>
+({
+    id, username, password, score, isModerator, isBanned
+})
 class User extends EventEmitter{
     constructor() {
         super();
         this.state = {
-            users: [
-            {
-                userName: "u1",
-                password: "pass1"
-            },
-            {
-                userName: "u2",
-                password: "pass2"
-            },
-            {
-                userName: "paul",
-                password: "paul"
-            }
-            ],
+            users: [],
+
             newUser: {
-                userName:"",
+                username:"",
                 password:""
             },
-            loggedInUser: {
-                userName: "",
-                password: ""
-            }
+            loggedInUser: null
         };
     }
 
-    addUser(userName, password){
+
+    banUserToLocalState(bannedUserId) {
+        var user = this.state.users.find(u => u.id === bannedUserId);
+        if (user) user.isBanned = true;
+
+        if (this.state.loggedInUser.id === bannedUserId) this.isBanned= true;
+        this.emit("change", this.state);
+    }
+    addUser(username, password){
         this.state = {
             ...this.state,
             users: this.state.users.concat([{
-                userName: userName,
+                username: username,
                 password: password
             }])
         };
@@ -63,15 +62,48 @@ class User extends EventEmitter{
     }
 
     login(username, password){
-        let users = this.state.users;
-        for (let i = 0; i < users.length; i++) {
-            if (users[i].userName === username && users[i].password === password) {
-                return true;
-            }
-        }
-        return false;
+
+        this.client = new RestClientFactory(username, password);
+        return this.client.createLoginClient().loadCurrentLoggedUser()
+            .then(user=>
+            {
+                if(!user) return false;
+                if(this.hasOwnProperty("listener")){
+                    delete this.listener.client.deactivate();
+                }
+                this.listener = new WebSocketListener(username, password);
+                this.listener.on("event", event => webSocketListener(event));
+                this.state = {
+                    ...this.state,
+                    loggedInUser:user
+                };
+            this.emit("change", this.state);
+            return true;
+            });
+    }
+
+    loadAllUsers() {
+      return this.client.createUserClient().loadAllUsers()
+            .then(users => {
+                    this.state = {
+                        ...this.state,
+                        users
+                    }
+
+                    this.emit("change", this.state);
+                }
+            );  
+    }
+
+    banUser(bannedUserId){
+        return this.client.createUserClient.banUser(bannedUserId);
     }
 }
 
 const userModel = new User();
+
+function webSocketListener(event){
+    if(event.type === "USER_BANNED")
+        userModel.banUserToLocalState(event.userId);
+}
 export default userModel;
